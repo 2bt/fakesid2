@@ -11,15 +11,16 @@ public:
     gt::Song const& song;
     Player(gt::Song const& song);
 
-    enum {
-        PLAY_BEGINNING = 0x01,
-        PLAY_POS       = 0x02,
-        PLAY_PATTERN   = 0x03,
-        PLAY_STOP      = 0x04,
-        PLAY_STOPPED   = 0x80,
+    enum Mode {
+        PLAY_FOO       = 0,
+        PLAY_BEGINNING = 1,
+        PLAY_POS       = 2,
+        PLAY_PATTERN   = 3,
+        PLAY_STOP      = 4,
+        PLAY_STOPPED   = 128,
     };
 
-    void initsong(int num, int mode, int pattpos = 0);
+    void initsong(int num, Mode mode, int pattpos = 0);
     void stopsong();
     void playroutine();
 
@@ -81,17 +82,14 @@ private:
     uint8_t                      masterfader = 0x0f;
     int                          psnum       = 0; // song number
 
-    int songinit     = 0;
-    int lastsonginit = 0;
-    int startpattpos = 0;
+    Mode songinit     = PLAY_FOO;
+    Mode lastsonginit = PLAY_FOO;
+    int  startpattpos = 0;
 
     int espos[MAX_CHN];
     int esend[MAX_CHN];
     int epnum[MAX_CHN];
 };
 
-
-void playroutine();
-void initsong(int num, int mode, int pattpos = 0);
 
 } // namespace gt

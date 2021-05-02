@@ -85,18 +85,12 @@ void audio_callback(void* u, Uint8* stream, int bytes) {
 
 int main(int argc, char** argv) {
 
-    if (!song.load("../examples/hyperspace.sng")) {
+    if (!song.load("../sng/hyperspace.sng")) {
         printf("ERROR\n");
         return 1;
     }
 
-    player.initsong(0, 1);
-
-//    for (int i = 0; i < 99; ++i) {
-//        playroutine();
-//        for (int c = 0; c < 25; ++c) printf(" %02X", sidreg[c]);
-//        printf("\n");
-//    }
+    player.initsong(0, gt::Player::PLAY_BEGINNING);
 
     SDL_AudioSpec spec = { MIXRATE, AUDIO_S16, 1, 0, BUFFER_SIZE, 0, 0, &audio_callback };
     SDL_OpenAudio(&spec, nullptr);

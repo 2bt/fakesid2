@@ -62,7 +62,7 @@ gt::Player::Player(gt::Song const& song) : song(song) {
     }
 }
 
-void gt::Player::initsong(int num, int mode, int pattpos) {
+void gt::Player::initsong(int num, Mode mode, int pattpos) {
     psnum        = num;
     songinit     = mode;
     startpattpos = pattpos;
@@ -219,7 +219,7 @@ void gt::Player::playroutine() {
                 break;
             }
         }
-        if (songinit != PLAY_STOP) songinit = 0;
+        if (songinit != PLAY_STOP) songinit = PLAY_FOO;
         else                       songinit = PLAY_STOPPED;
 
         if (song.songlen[psnum][0] == 0 ||
