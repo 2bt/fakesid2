@@ -40,9 +40,9 @@ SidEngine  sid_engine;
 
 
 void tick() {
-    player.playroutine();
+    player.play_routine();
     for (int i = 0; i < 25; ++i) {
-        sid_engine.set_reg(i, player.sidreg[i]);
+        sid_engine.set_reg(i, player.regs[i]);
 //        printf(" %02X", player.sidreg[i]);
     }
 //    printf("\n");
@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    player.initsong(0, gt::Player::PLAY_BEGINNING);
+    player.init_song(0, gt::Player::PLAY_BEGINNING);
 
     SDL_AudioSpec spec = { MIXRATE, AUDIO_S16, 1, 0, BUFFER_SIZE, 0, 0, &audio_callback };
     SDL_OpenAudio(&spec, nullptr);

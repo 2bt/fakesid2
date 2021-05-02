@@ -40,36 +40,36 @@ uint8_t const FREQ_HI[] = {
 
 gt::Player::Player(gt::Song const& song) : song(song) {
     for (int c = 0; c < MAX_CHN; c++) {
-        channels[c].trans = 0;
-        channels[c].instr = 1;
-        if (multiplier) channels[c].tempo = 6 * multiplier - 1;
-        else            channels[c].tempo = 6 - 1;
+        m_channels[c].trans = 0;
+        m_channels[c].instr = 1;
+        if (m_multiplier) m_channels[c].tempo = 6 * m_multiplier - 1;
+        else              m_channels[c].tempo = 6 - 1;
     }
-    if (multiplier) {
-        funktable[0] = 9 * multiplier - 1;
-        funktable[1] = 6 * multiplier - 1;
+    if (m_multiplier) {
+        m_funktable[0] = 9 * m_multiplier - 1;
+        m_funktable[1] = 6 * m_multiplier - 1;
     }
     else {
-        funktable[0] = 9 - 1;
-        funktable[1] = 6 - 1;
+        m_funktable[0] = 9 - 1;
+        m_funktable[1] = 6 - 1;
     }
 
     // XXX: copied from songchanged()
     for (int c = 0; c < MAX_CHN; c++) {
-        espos[c] = 0;
-        esend[c] = 0;
-        epnum[c] = c;
+        m_espos[c] = 0;
+        m_esend[c] = 0;
+        m_epnum[c] = c;
     }
 }
 
-void gt::Player::initsong(int num, Mode mode, int pattpos) {
-    psnum        = num;
-    songinit     = mode;
-    startpattpos = pattpos;
+void gt::Player::init_song(int num, Mode mode, int pattpos) {
+    m_psnum        = num;
+    m_songinit     = mode;
+    m_startpattpos = pattpos;
 }
 
-void gt::Player::stopsong() {
-    if (songinit != PLAY_STOPPED) songinit = PLAY_STOP;
+void gt::Player::stop_song() {
+    if (m_songinit != PLAY_STOPPED) m_songinit = PLAY_STOP;
 }
 
 //void rewindsong() {
@@ -77,99 +77,105 @@ void gt::Player::stopsong() {
 //    initsong(psnum, lastsonginit);
 //}
 
-void gt::Player::releasenote(int chnnum) { channels[chnnum].gate = 0xfe; }
+void gt::Player::release_note(int chnnum) { m_channels[chnnum].gate = 0xfe; }
 
-void gt::Player::playtestnote(int note, int ins, int chnnum) {
+void gt::Player::play_test_note(int note, int ins, int chnnum) {
     if (note == KEYON) return;
     if (note == REST || note == KEYOFF) {
-        releasenote(chnnum);
+        release_note(chnnum);
         return;
     }
 
     if (!(song.instr[ins].gatetimer & 0x40)) {
-        channels[chnnum].gate = 0xfe; // keyoff
+        m_channels[chnnum].gate = 0xfe; // keyoff
         if (!(song.instr[ins].gatetimer & 0x80)) {
-            sidreg[0x5 + chnnum * 7] = adparam >> 8; // hardrestart
-            sidreg[0x6 + chnnum * 7] = adparam & 0xff;
+            regs[0x5 + chnnum * 7] = m_adparam >> 8; // hardrestart
+            regs[0x6 + chnnum * 7] = m_adparam & 0xff;
         }
     }
 
-    channels[chnnum].instr   = ins;
-    channels[chnnum].newnote = note;
-    if (songinit == PLAY_STOPPED) {
-        channels[chnnum].tick      = (song.instr[ins].gatetimer & 0x3f) + 1;
-        channels[chnnum].gatetimer = song.instr[ins].gatetimer & 0x3f;
+    m_channels[chnnum].instr   = ins;
+    m_channels[chnnum].newnote = note;
+    if (m_songinit == PLAY_STOPPED) {
+        m_channels[chnnum].tick      = (song.instr[ins].gatetimer & 0x3f) + 1;
+        m_channels[chnnum].gatetimer = song.instr[ins].gatetimer & 0x3f;
     }
 }
 
 
 void gt::Player::sequencer(int c) {
-    Channel& chan = channels[c];
-    if (songinit == PLAY_STOPPED || chan.pattptr != 0x7fffffff) return;
-    chan.pattptr = startpattpos * 4;
+    Channel& chan = m_channels[c];
+    if (m_songinit == PLAY_STOPPED || chan.pattptr != 0x7fffffff) return;
+    chan.pattptr = m_startpattpos * 4;
     if (!chan.advance) return;
     // song loop
-    if (song.songorder[psnum][c][chan.songptr] == LOOPSONG) {
-        chan.songptr = song.songorder[psnum][c][chan.songptr + 1];
-        if (chan.songptr >= song.songlen[psnum][c]) {
-            stopsong();
+    if (song.songorder[m_psnum][c][chan.songptr] == LOOPSONG) {
+        chan.songptr = song.songorder[m_psnum][c][chan.songptr + 1];
+        if (chan.songptr >= song.songlen[m_psnum][c]) {
+            stop_song();
             chan.songptr = 0;
             return;
         }
     }
     // transpose
-    if ((song.songorder[psnum][c][chan.songptr] >= TRANSDOWN) &&
-        (song.songorder[psnum][c][chan.songptr] < LOOPSONG)) {
-        chan.trans = song.songorder[psnum][c][chan.songptr] - TRANSUP;
+    if (song.songorder[m_psnum][c][chan.songptr] >= TRANSDOWN &&
+        song.songorder[m_psnum][c][chan.songptr] < LOOPSONG)
+    {
+        chan.trans = song.songorder[m_psnum][c][chan.songptr] - TRANSUP;
         chan.songptr++;
     }
     // repeat
-    if ((song.songorder[psnum][c][chan.songptr] >= REPEAT) &&
-        (song.songorder[psnum][c][chan.songptr] < TRANSDOWN)) {
-        chan.repeat = song.songorder[psnum][c][chan.songptr] - REPEAT;
+    if (song.songorder[m_psnum][c][chan.songptr] >= REPEAT &&
+        song.songorder[m_psnum][c][chan.songptr] < TRANSDOWN)
+    {
+        chan.repeat = song.songorder[m_psnum][c][chan.songptr] - REPEAT;
         chan.songptr++;
     }
     // pattern number
-    chan.pattnum = song.songorder[psnum][c][chan.songptr];
+    chan.pattnum = song.songorder[m_psnum][c][chan.songptr];
     if (chan.repeat) chan.repeat--;
     else             chan.songptr++;
 
     // check for illegal pattern now
     if (chan.pattnum >= MAX_PATT) {
-        stopsong();
+        stop_song();
         chan.pattnum = 0;
     }
     if (chan.pattptr >= (song.pattlen[chan.pattnum] * 4)) chan.pattptr = 0;
 
     // check for playback endpos
-    if ((lastsonginit != PLAY_BEGINNING) && (esend[c] > 0) && (esend[c] > espos[c]) &&
-        (chan.songptr > esend[c]) && (espos[c] < song.songlen[psnum][c])) {
-        chan.songptr = espos[c];
+    if (m_lastsonginit != PLAY_BEGINNING &&
+        m_esend[c] > 0 &&
+        m_esend[c] > m_espos[c] &&
+        chan.songptr > m_esend[c] &&
+        m_espos[c] < song.songlen[m_psnum][c])
+    {
+        chan.songptr = m_espos[c];
     }
 }
 
 
-void gt::Player::playroutine() {
+void gt::Player::play_routine() {
 
     //if (songinit == PLAY_STOP) followplay = 0;
 
-    if (songinit > 0 && songinit < PLAY_STOPPED) {
-        lastsonginit = songinit;
+    if (m_songinit > 0 && m_songinit < PLAY_STOPPED) {
+        m_lastsonginit = m_songinit;
 
-        filterctrl = 0;
-        filterptr  = 0;
+        m_filterctrl = 0;
+        m_filterptr  = 0;
 
-        if (songinit == PLAY_POS || songinit == PLAY_PATTERN) {
-            if (espos[0] >= song.songlen[psnum][0] ||
-                espos[1] >= song.songlen[psnum][1] ||
-                espos[2] >= song.songlen[psnum][2])
+        if (m_songinit == PLAY_POS || m_songinit == PLAY_PATTERN) {
+            if (m_espos[0] >= song.songlen[m_psnum][0] ||
+                m_espos[1] >= song.songlen[m_psnum][1] ||
+                m_espos[2] >= song.songlen[m_psnum][2])
             {
-                songinit = PLAY_BEGINNING;
+                m_songinit = PLAY_BEGINNING;
             }
         }
 
         for (int c = 0; c < MAX_CHN; c++) {
-            Channel& chan = channels[c];
+            Channel& chan = m_channels[c];
             chan.songptr    = 0;
             chan.command    = 0;
             chan.cmddata    = 0;
@@ -180,23 +186,23 @@ void gt::Player::playroutine() {
             chan.ptr[WTBL]  = 0;
             chan.newnote    = 0;
             chan.repeat     = 0;
-            if (multiplier) chan.tick = 6 * multiplier - 1;
+            if (m_multiplier) chan.tick = 6 * m_multiplier - 1;
             else            chan.tick = 6 - 1;
             chan.gatetimer = song.instr[1].gatetimer & 0x3f;
             chan.pattptr   = 0x7fffffff;
             if (chan.tempo < 2) chan.tempo = 0;
 
-            switch (songinit) {
+            switch (m_songinit) {
             case PLAY_BEGINNING:
-                if (multiplier) {
-                    funktable[0] = 9 * multiplier - 1;
-                    funktable[1] = 6 * multiplier - 1;
-                    chan.tempo   = 6 * multiplier - 1;
+                if (m_multiplier) {
+                    m_funktable[0] = 9 * m_multiplier - 1;
+                    m_funktable[1] = 6 * m_multiplier - 1;
+                    chan.tempo     = 6 * m_multiplier - 1;
                 }
                 else {
-                    funktable[0] = 9 - 1;
-                    funktable[1] = 6 - 1;
-                    chan.tempo   = 6 - 1;
+                    m_funktable[0] = 9 - 1;
+                    m_funktable[1] = 6 - 1;
+                    chan.tempo     = 6 - 1;
                 }
                 if (song.instr[MAX_INSTR - 1].ad >= 2 && !song.instr[MAX_INSTR - 1].ptr[WTBL]) {
                     chan.tempo = song.instr[MAX_INSTR - 1].ad - 1;
@@ -208,82 +214,82 @@ void gt::Player::playroutine() {
 
             case PLAY_PATTERN:
                 chan.advance = 0;
-                chan.pattptr = startpattpos * 4;
-                chan.pattnum = epnum[c];
+                chan.pattptr = m_startpattpos * 4;
+                chan.pattnum = m_epnum[c];
                 if (chan.pattptr >= song.pattlen[chan.pattnum] * 4) chan.pattptr = 0;
                 break;
 
             case PLAY_POS:
-                chan.songptr = espos[c];
+                chan.songptr = m_espos[c];
                 sequencer(c);
                 break;
             }
         }
-        if (songinit != PLAY_STOP) songinit = PLAY_FOO;
-        else                       songinit = PLAY_STOPPED;
+        if (m_songinit != PLAY_STOP) m_songinit = PLAY_FOO;
+        else                         m_songinit = PLAY_STOPPED;
 
-        if (song.songlen[psnum][0] == 0 ||
-            song.songlen[psnum][1] == 0 ||
-            song.songlen[psnum][2] == 0)
+        if (song.songlen[m_psnum][0] == 0 ||
+            song.songlen[m_psnum][1] == 0 ||
+            song.songlen[m_psnum][2] == 0)
         {
-            songinit = PLAY_STOPPED; // zero length song
+            m_songinit = PLAY_STOPPED; // zero length song
         }
 
-        startpattpos = 0;
+        m_startpattpos = 0;
         return;
     }
 
-    if (filterptr) {
+    if (m_filterptr) {
         // filter jump
-        if (song.ltable[FTBL][filterptr - 1] == 0xff) {
-            filterptr = song.rtable[FTBL][filterptr - 1];
-            if (!filterptr) goto FILTERSTOP;
+        if (song.ltable[FTBL][m_filterptr - 1] == 0xff) {
+            m_filterptr = song.rtable[FTBL][m_filterptr - 1];
+            if (!m_filterptr) goto FILTERSTOP;
         }
 
-        if (!filtertime) {
+        if (!m_filtertime) {
             // filter set
-            if (song.ltable[FTBL][filterptr - 1] >= 0x80) {
-                filtertype = song.ltable[FTBL][filterptr - 1] & 0x70;
-                filterctrl = song.rtable[FTBL][filterptr - 1];
-                filterptr++;
+            if (song.ltable[FTBL][m_filterptr - 1] >= 0x80) {
+                m_filtertype = song.ltable[FTBL][m_filterptr - 1] & 0x70;
+                m_filterctrl = song.rtable[FTBL][m_filterptr - 1];
+                m_filterptr++;
                 // can be combined with cutoff set
-                if (song.ltable[FTBL][filterptr - 1] == 0x00) {
-                    filtercutoff = song.rtable[FTBL][filterptr - 1];
-                    filterptr++;
+                if (song.ltable[FTBL][m_filterptr - 1] == 0x00) {
+                    m_filtercutoff = song.rtable[FTBL][m_filterptr - 1];
+                    m_filterptr++;
                 }
             }
             else {
                 // new modulation step
-                if (song.ltable[FTBL][filterptr - 1]) filtertime = song.ltable[FTBL][filterptr - 1];
+                if (song.ltable[FTBL][m_filterptr - 1]) m_filtertime = song.ltable[FTBL][m_filterptr - 1];
                 else {
                     // cutoff set
-                    filtercutoff = song.rtable[FTBL][filterptr - 1];
-                    filterptr++;
+                    m_filtercutoff = song.rtable[FTBL][m_filterptr - 1];
+                    m_filterptr++;
                 }
             }
         }
         // filter modulation
-        if (filtertime) {
-            filtercutoff += song.rtable[FTBL][filterptr - 1];
-            filtertime--;
-            if (!filtertime) filterptr++;
+        if (m_filtertime) {
+            m_filtercutoff += song.rtable[FTBL][m_filterptr - 1];
+            m_filtertime--;
+            if (!m_filtertime) m_filterptr++;
         }
     }
 
 FILTERSTOP:
-    sidreg[0x15] = 0x00;
-    sidreg[0x16] = filtercutoff;
-    sidreg[0x17] = filterctrl;
-    sidreg[0x18] = filtertype | masterfader;
+    regs[0x15] = 0x00;
+    regs[0x16] = m_filtercutoff;
+    regs[0x17] = m_filterctrl;
+    regs[0x18] = m_filtertype | m_masterfader;
 
     for (int c = 0; c < MAX_CHN; c++) {
-        Channel&     chan = channels[c];
+        Channel&     chan = m_channels[c];
         Instr const& iptr = song.instr[chan.instr];
 
         // reset tempo in jammode
-        if (songinit == PLAY_STOPPED && chan.tempo < 2) {
-            if (multiplier) chan.tempo = 6 * multiplier - 1;
-            else            chan.tempo = 6 - 1;
+        if (m_songinit == PLAY_STOPPED && chan.tempo < 2) {
+            if (m_multiplier) chan.tempo = 6 * m_multiplier - 1;
+            else              chan.tempo = 6 - 1;
         }
 
         // decrease tick
@@ -296,11 +302,11 @@ FILTERSTOP:
             if (chan.tempo >= 2) chan.tick = chan.tempo;
             else {
                 // set funktempo, switch between 2 values
-                chan.tick = funktable[chan.tempo];
+                chan.tick = m_funktable[chan.tempo];
                 chan.tempo ^= 1;
             }
             // check for illegally high gatetimer and stop the song in this case
-            if (chan.gatetimer > chan.tick) stopsong();
+            if (chan.gatetimer > chan.tick) stop_song();
         }
         goto WAVEEXEC;
 
@@ -327,31 +333,30 @@ TICK0:
                     }
                 }
 
-
                 chan.ptr[WTBL] = iptr.ptr[WTBL];
 
                 if (chan.ptr[WTBL]) {
                     // stop the song in case of jumping into a jump
-                    if (song.ltable[WTBL][chan.ptr[WTBL] - 1] == 0xff) stopsong();
+                    if (song.ltable[WTBL][chan.ptr[WTBL] - 1] == 0xff) stop_song();
                 }
                 if (iptr.ptr[PTBL]) {
                     chan.ptr[PTBL] = iptr.ptr[PTBL];
                     chan.pulsetime = 0;
                     if (chan.ptr[PTBL]) {
                         // stop the song in case of jumping into a jump
-                        if (song.ltable[PTBL][chan.ptr[PTBL] - 1] == 0xff) stopsong();
+                        if (song.ltable[PTBL][chan.ptr[PTBL] - 1] == 0xff) stop_song();
                     }
                 }
                 if (iptr.ptr[FTBL]) {
-                    filterptr  = iptr.ptr[FTBL];
-                    filtertime = 0;
-                    if (filterptr) {
+                    m_filterptr  = iptr.ptr[FTBL];
+                    m_filtertime = 0;
+                    if (m_filterptr) {
                         // stop the song in case of jumping into a jump
-                        if (song.ltable[FTBL][filterptr - 1] == 0xff) stopsong();
+                        if (song.ltable[FTBL][m_filterptr - 1] == 0xff) stop_song();
                     }
                 }
-                sidreg[0x5 + 7 * c] = iptr.ad;
-                sidreg[0x6 + 7 * c] = iptr.sr;
+                regs[0x5 + 7 * c] = iptr.ad;
+                regs[0x6 + 7 * c] = iptr.sr;
             }
         }
 
@@ -376,9 +381,9 @@ TICK0:
             chan.cmddata = chan.newcmddata;
             break;
 
-        case CMD_SETAD: sidreg[0x5 + 7 * c] = chan.newcmddata; break;
+        case CMD_SETAD: regs[0x5 + 7 * c] = chan.newcmddata; break;
 
-        case CMD_SETSR: sidreg[0x6 + 7 * c] = chan.newcmddata; break;
+        case CMD_SETSR: regs[0x6 + 7 * c] = chan.newcmddata; break;
 
         case CMD_SETWAVE: chan.wave = chan.newcmddata; break;
 
@@ -387,7 +392,7 @@ TICK0:
             chan.wavetime  = 0;
             if (chan.ptr[WTBL]) {
                 // stop the song in case of jumping into a jump
-                if (song.ltable[WTBL][chan.ptr[WTBL] - 1] == 0xff) stopsong();
+                if (song.ltable[WTBL][chan.ptr[WTBL] - 1] == 0xff) stop_song();
             }
             break;
 
@@ -396,38 +401,38 @@ TICK0:
             chan.pulsetime = 0;
             if (chan.ptr[PTBL]) {
                 // stop the song in case of jumping into a jump
-                if (song.ltable[PTBL][chan.ptr[PTBL] - 1] == 0xff) stopsong();
+                if (song.ltable[PTBL][chan.ptr[PTBL] - 1] == 0xff) stop_song();
             }
             break;
 
         case CMD_SETFILTERPTR:
-            filterptr  = chan.newcmddata;
-            filtertime = 0;
-            if (filterptr) {
+            m_filterptr  = chan.newcmddata;
+            m_filtertime = 0;
+            if (m_filterptr) {
                 // stop the song in case of jumping into a jump
-                if (song.ltable[FTBL][filterptr - 1] == 0xff) stopsong();
+                if (song.ltable[FTBL][m_filterptr - 1] == 0xff) stop_song();
             }
             break;
 
         case CMD_SETFILTERCTRL:
-            filterctrl = chan.newcmddata;
-            if (!filterctrl) filterptr = 0;
+            m_filterctrl = chan.newcmddata;
+            if (!m_filterctrl) m_filterptr = 0;
             break;
 
-        case CMD_SETFILTERCUTOFF: filtercutoff = chan.newcmddata; break;
+        case CMD_SETFILTERCUTOFF: m_filtercutoff = chan.newcmddata; break;
 
         case CMD_SETMASTERVOL:
-            if (chan.newcmddata < 0x10) masterfader = chan.newcmddata;
+            if (chan.newcmddata < 0x10) m_masterfader = chan.newcmddata;
             break;
 
         case CMD_FUNKTEMPO:
             if (chan.newcmddata) {
-                funktable[0] = song.ltable[STBL][chan.newcmddata - 1] - 1;
-                funktable[1] = song.rtable[STBL][chan.newcmddata - 1] - 1;
+                m_funktable[0] = song.ltable[STBL][chan.newcmddata - 1] - 1;
+                m_funktable[1] = song.rtable[STBL][chan.newcmddata - 1] - 1;
             }
-            channels[0].tempo = 0;
-            channels[1].tempo = 0;
-            channels[2].tempo = 0;
+            m_channels[0].tempo = 0;
+            m_channels[1].tempo = 0;
+            m_channels[2].tempo = 0;
             break;
 
         case CMD_SETTEMPO: {
@@ -436,9 +441,9 @@ TICK0:
             if (newtempo >= 3) newtempo--;
             if (chan.newcmddata >= 0x80) chan.tempo = newtempo;
             else {
-                channels[0].tempo = newtempo;
-                channels[1].tempo = newtempo;
-                channels[2].tempo = newtempo;
+                m_channels[0].tempo = newtempo;
+                m_channels[1].tempo = newtempo;
+                m_channels[2].tempo = newtempo;
             }
         } break;
         }
@@ -463,7 +468,7 @@ WAVEEXEC:
                     switch (wave & 0xf) {
                     case CMD_DONOTHING:
                     case CMD_SETWAVEPTR:
-                    case CMD_FUNKTEMPO: stopsong(); break;
+                    case CMD_FUNKTEMPO: stop_song(); break;
 
                     case CMD_PORTAUP: {
                         uint16_t speed = 0;
@@ -544,10 +549,10 @@ WAVEEXEC:
                         else                     chan.freq += speed;
                     } break;
 
-                    case CMD_SETAD: sidreg[0x5 + 7 * c] = param; break;
+                    case CMD_SETAD: regs[0x5 + 7 * c] = param; break;
 
                     case CMD_SETSR:
-                        sidreg[0x6 + 7 * c] = param;
+                        regs[0x6 + 7 * c] = param;
                         break;
 
                     case CMD_SETWAVE: chan.wave = param; break;
@@ -557,28 +562,28 @@ WAVEEXEC:
                         chan.pulsetime = 0;
                         if (chan.ptr[PTBL]) {
                             // stop the song in case of jumping into a jump
-                            if (song.ltable[PTBL][chan.ptr[PTBL] - 1] == 0xff) stopsong();
+                            if (song.ltable[PTBL][chan.ptr[PTBL] - 1] == 0xff) stop_song();
                         }
                         break;
 
                     case CMD_SETFILTERPTR:
-                        filterptr  = param;
-                        filtertime = 0;
-                        if (filterptr) {
+                        m_filterptr  = param;
+                        m_filtertime = 0;
+                        if (m_filterptr) {
                             // stop the song in case of jumping into a jump
-                            if (song.ltable[FTBL][filterptr - 1] == 0xff) stopsong();
+                            if (song.ltable[FTBL][m_filterptr - 1] == 0xff) stop_song();
                         }
                         break;
 
                     case CMD_SETFILTERCTRL:
-                        filterctrl = param;
-                        if (!filterctrl) filterptr = 0;
+                        m_filterctrl = param;
+                        if (!m_filterctrl) m_filterptr = 0;
                         break;
 
-                    case CMD_SETFILTERCUTOFF: filtercutoff = param; break;
+                    case CMD_SETFILTERCUTOFF: m_filtercutoff = param; break;
 
                     case CMD_SETMASTERVOL:
-                        if (param < 0x10) masterfader = param;
+                        if (param < 0x10) m_masterfader = param;
                         break;
                     }
                 }
@@ -598,7 +603,7 @@ WAVEEXEC:
                 chan.ptr[WTBL] = song.rtable[WTBL][chan.ptr[WTBL] - 1];
             }
 
-            if ((wave >= WAVECMD) && (wave <= WAVELASTCMD)) goto PULSEEXEC;
+            if (wave >= WAVECMD && wave <= WAVELASTCMD) goto PULSEEXEC;
 
             if (note != 0x80) {
                 if (note < 0x80) note += chan.note;
@@ -612,7 +617,7 @@ WAVEEXEC:
 
 TICKNEFFECTS:
         // tick N command
-        if (!optimizerealtime || chan.tick) {
+        if (!m_optimizerealtime || chan.tick) {
             switch (chan.command) {
             case CMD_PORTAUP: {
                 uint16_t speed = 0;
@@ -702,13 +707,13 @@ TICKNEFFECTS:
         }
 
 PULSEEXEC:
-        if (optimizepulse) {
-            if (songinit != PLAY_STOPPED && chan.tick == chan.gatetimer) goto GETNEWNOTES;
+        if (m_optimizepulse) {
+            if (m_songinit != PLAY_STOPPED && chan.tick == chan.gatetimer) goto GETNEWNOTES;
         }
 
         if (chan.ptr[PTBL]) {
             // skip pulse when sequencer has been executed
-            if (optimizepulse) {
+            if (m_optimizepulse) {
                 if (!chan.tick && !chan.pattptr) goto NEXTCHN;
             }
 
@@ -745,7 +750,7 @@ PULSEEXEC:
                 if (!chan.pulsetime) chan.ptr[PTBL]++;
             }
         }
-        if (songinit == PLAY_STOPPED || chan.tick != chan.gatetimer) goto NEXTCHN;
+        if (m_songinit == PLAY_STOPPED || chan.tick != chan.gatetimer) goto NEXTCHN;
 
 GETNEWNOTES:
         // new notes processing
@@ -767,8 +772,8 @@ GETNEWNOTES:
                     if (!(song.instr[chan.instr].gatetimer & 0x40)) {
                         chan.gate = 0xfe;
                         if (!(song.instr[chan.instr].gatetimer & 0x80)) {
-                            sidreg[0x5 + 7 * c] = adparam >> 8;
-                            sidreg[0x6 + 7 * c] = adparam & 0xff;
+                            regs[0x5 + 7 * c] = m_adparam >> 8;
+                            regs[0x6 + 7 * c] = m_adparam & 0xff;
                         }
                     }
                 }
@@ -776,14 +781,14 @@ GETNEWNOTES:
         }
 NEXTCHN:
         if (chan.mute) {
-            sidreg[0x4 + 7 * c] = chan.wave = 0x08;
+            regs[0x4 + 7 * c] = chan.wave = 0x08;
         }
         else {
-            sidreg[0x0 + 7 * c] = chan.freq & 0xff;
-            sidreg[0x1 + 7 * c] = chan.freq >> 8;
-            sidreg[0x2 + 7 * c] = chan.pulse & 0xfe;
-            sidreg[0x3 + 7 * c] = chan.pulse >> 8;
-            sidreg[0x4 + 7 * c] = chan.wave & chan.gate;
+            regs[0x0 + 7 * c] = chan.freq & 0xff;
+            regs[0x1 + 7 * c] = chan.freq >> 8;
+            regs[0x2 + 7 * c] = chan.pulse & 0xfe;
+            regs[0x3 + 7 * c] = chan.pulse >> 8;
+            regs[0x4 + 7 * c] = chan.wave & chan.gate;
         }
     }
     //if (songinit != PLAY_STOPPED) incrementtime();

@@ -20,19 +20,19 @@ public:
         PLAY_STOPPED   = 128,
     };
 
-    void initsong(int num, Mode mode, int pattpos = 0);
-    void stopsong();
-    void playroutine();
+    void init_song(int num, Mode mode, int pattpos = 0);
+    void stop_song();
+    void play_routine();
 
 
     // TODO: test
-    void releasenote(int chnnum);
-    void playtestnote(int note, int ins, int chnnum);
+    void release_note(int chnnum);
+    void play_test_note(int note, int ins, int chnnum);
 
-    void mutechannel(int chnnum) { channels[chnnum].mute ^= 1; }
-    int  isplaying() const { return (songinit != PLAY_STOPPED); }
+    void mute_channel(int chnnum) { m_channels[chnnum].mute ^= 1; }
+    int  is_playing() const { return (m_songinit != PLAY_STOPPED); }
 
-    std::array<uint8_t, 25> sidreg;
+    std::array<uint8_t, 25> regs;
 
 private:
     void sequencer(int c);
@@ -67,28 +67,30 @@ private:
         uint8_t  gatetimer;
     };
 
-    int      multiplier       = 1;      // for multi speed
-    uint16_t adparam          = 0x0f00; // HR
-    bool     optimizepulse    = true;
-    bool     optimizerealtime = true;
+    // play options
+    int      m_multiplier       = 1;      // for multi speed
+    uint16_t m_adparam          = 0x0f00; // HR
+    bool     m_optimizepulse    = true;
+    bool     m_optimizerealtime = true;
 
-    std::array<Channel, MAX_CHN> channels = {};
-    uint8_t                      filterctrl   = 0;
-    uint8_t                      filtertype   = 0;
-    uint8_t                      filtercutoff = 0;
-    uint8_t                      filtertime   = 0;
-    uint8_t                      filterptr    = 0;
-    uint8_t                      funktable[2];
-    uint8_t                      masterfader = 0x0f;
-    int                          psnum       = 0; // song number
+    int      m_espos[MAX_CHN];
+    int      m_esend[MAX_CHN];
+    int      m_epnum[MAX_CHN];
 
-    Mode songinit     = PLAY_FOO;
-    Mode lastsonginit = PLAY_FOO;
-    int  startpattpos = 0;
+    // state
+    Mode                         m_songinit     = PLAY_FOO;
+    Mode                         m_lastsonginit = PLAY_FOO;
+    int                          m_startpattpos = 0;
+    std::array<Channel, MAX_CHN> m_channels     = {};
+    uint8_t                      m_filterctrl   = 0;
+    uint8_t                      m_filtertype   = 0;
+    uint8_t                      m_filtercutoff = 0;
+    uint8_t                      m_filtertime   = 0;
+    uint8_t                      m_filterptr    = 0;
+    uint8_t                      m_funktable[2];
+    uint8_t                      m_masterfader  = 0x0f;
+    int                          m_psnum        = 0; // song number
 
-    int espos[MAX_CHN];
-    int esend[MAX_CHN];
-    int epnum[MAX_CHN];
 };
 
 
